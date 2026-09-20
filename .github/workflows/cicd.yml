@@ -1,0 +1,55 @@
+name: Flutter CI/CD Pipeline
+
+# กำหนดให้ทำงานเมื่อมีการ Push โค้ดเข้า branch 'main'
+on:
+  push:
+    branches: [ "main" ]
+  pull_request:
+    branches: [ "main" ]
+
+jobs:
+  build:
+    name: Build Flutter App
+    runs-on: ubuntu-latest
+
+    steps:
+      # 1. ดึงโค้ดล่าสุดจาก Repository
+      - name: Checkout Code
+        uses: actions/checkout@v3
+
+      # 2. ติดตั้ง Java (จำเป็นสำหรับการ Build Android APK)
+      - name: Setup Java
+        uses: actions/setup-java@v3
+        with:
+          distribution: 'zulu'
+          java-version: '17'
+
+      # 3. ติดตั้ง Flutter SDK เครื่องบน GitHub
+      - name: Setup Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          flutter-version: '3.19.0' # สามารถปรับให้ตรงกับเวอร์ชันที่คุณใช้
+          channel: 'stable'
+
+      # 4. ดาวน์โหลด Packages ทั้งหมด
+      - name: Install Dependencies
+        run: flutter pub get
+
+      # 5. ตรวจสอบ Syntax โค้ด (Linting)
+      - name: Analyze Code
+        run: flutter analyze
+
+      # 6. Build แอปพลิเคชันฝั่งเว็บ (ถ้าต้องการใช้เป็น Web App)
+      - name: Build Web
+        run: flutter build web
+
+      # 7. Build แอปพลิเคชันฝั่ง Android (.apk)
+      - name: Build APK
+        run: flutter build apk --release
+
+      # 8. อัปโหลดไฟล์ APK ที่ Build เสร็จแล้วไว้ให้เราดาวน์โหลด
+      - name: Upload Artifact (APK)
+        uses: actions/upload-artifact@v3
+        with:
+          name: app-release
+          path: build/app/outputs/flutter-apk/app-release.apk
