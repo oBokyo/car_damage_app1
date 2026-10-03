@@ -1,55 +1,128 @@
 name: Flutter CI/CD Pipeline
 
-# กำหนดให้ทำงานเมื่อมีการ Push โค้ดเข้า branch 'main'
 on:
   push:
     branches: [ "main" ]
   pull_request:
     branches: [ "main" ]
 
+env:
+  FLUTTER_VERSION: '3.19.0'
+
 jobs:
-  build:
-    name: Build Flutter App
-    runs-on: ubuntu-latest
-
+  # ==========================================
+  # JOB 1: ด่านตรวจสอบโค้ด (Lint & Test)
+  # ==========================================
+  test-and-analyze:
+    name: Analyze and Test
+    runs-on: ubuntu-22.04
     steps:
-      # 1. ดึงโค้ดล่าสุดจาก Repository
       - name: Checkout Code
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
 
-      # 2. ติดตั้ง Java (จำเป็นสำหรับการ Build Android APK)
+      - name: Cache Flutter
+        uses: actions/cache@v4
+        with:
+          path: /opt/hostedtoolcache/flutter
+          key: ${{ runner.os }}-flutter-${{ env.FLUTTER_VERSION }}
+          restore-keys: |
+            ${{ runner.os }}-flutter-
+
+      - name: Setup Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          flutter-version: ${{ env.FLUTTER_VERSION }}
+          channel: 'stable'
+
+      - name: Install Dependencies
+        run: flutter pub get
+
+      - name: Analyze Code
+        run: flutter analyze
+
+      # หากมีการเขียน Unit/Widget Test ให้ลบเครื่องหมาย # ออก
+      # - name: Run Tests
+      #   run: flutter test
+
+  # ==========================================
+  # JOB 2: Build Android APK
+  # ==========================================
+  build-android:
+    name: Build Android App
+    needs: test-and-analyze # บังคับให้ Job นี้ทำงานก็ต่อเมื่อ test-and-analyze ผ่าน
+    runs-on: ubuntu-22.04
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
       - name: Setup Java
-        uses: actions/setup-java@v3
+        uses: actions/setup-java@v4
         with:
           distribution: 'zulu'
           java-version: '17'
 
-      # 3. ติดตั้ง Flutter SDK เครื่องบน GitHub
+      - name: Cache Flutter
+        uses: actions/cache@v4
+        with:
+          path: /opt/hostedtoolcache/flutter
+          key: ${{ runner.os }}-flutter-${{ env.FLUTTER_VERSION }}
+          restore-keys: |
+            ${{ runner.os }}-flutter-
+
       - name: Setup Flutter
         uses: subosito/flutter-action@v2
         with:
-          flutter-version: '3.19.0' # สามารถปรับให้ตรงกับเวอร์ชันที่คุณใช้
+          flutter-version: ${{ env.FLUTTER_VERSION }}
           channel: 'stable'
 
-      # 4. ดาวน์โหลด Packages ทั้งหมด
       - name: Install Dependencies
         run: flutter pub get
 
-      # 5. ตรวจสอบ Syntax โค้ด (Linting)
-      - name: Analyze Code
-        run: flutter analyze
-
-      # 6. Build แอปพลิเคชันฝั่งเว็บ (ถ้าต้องการใช้เป็น Web App)
-      - name: Build Web
-        run: flutter build web
-
-      # 7. Build แอปพลิเคชันฝั่ง Android (.apk)
       - name: Build APK
         run: flutter build apk --release
 
-      # 8. อัปโหลดไฟล์ APK ที่ Build เสร็จแล้วไว้ให้เราดาวน์โหลด
       - name: Upload Artifact (APK)
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         with:
           name: app-release
           path: build/app/outputs/flutter-apk/app-release.apk
+
+  # ==========================================
+  # JOB 3: Build Web App
+  # ==========================================
+  build-web:
+    name: Build Web App
+    needs: test-and-analyze # บังคับให้ Job นี้ทำงานก็ต่อเมื่อ test-and-analyze ผ่าน
+    runs-on: ubuntu-22.04
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Cache Flutter
+        uses: actions/cache@v4
+        with:
+          path: /opt/hostedtoolcache/flutter
+          key: ${{ runner.os }}-flutter-${{ env.FLUTTER_VERSION }}
+          restore-keys: |
+            ${{ runner.os }}-flutter-
+
+      - name: Setup Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          flutter-version: ${{ env.FLUTTER_VERSION }}
+          channel: 'stable'
+
+      - name: Enable Web Platform
+        run: flutter config --enable-web
+
+      - name: Install Dependencies
+        run: flutter pub get
+
+      - name: Build Web
+        run: flutter build web
+
+      - name: Upload Artifact (Web)
+        uses: actions/upload-artifact@v4
+        with:
+          name: web-release
+          path: build/web
