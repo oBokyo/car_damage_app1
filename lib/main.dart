@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'config.dart';
 import 'auth_pages.dart';
 import 'main_pages.dart';
 import 'detail_pages.dart';
@@ -59,15 +60,15 @@ class CarDamageApp extends StatelessWidget {
           ),
         ),
       ),
-      initialRoute: isLoggedIn ? '/home' : '/login',
+      initialRoute: isLoggedIn ? AppRoutes.home : AppRoutes.login,
       routes: {
-        '/login': (context) => const LoginPage(),
-        '/register': (context) => const RegisterPage(),
-        '/home': (context) => MainNavigator(role: role),
-        '/result': (context) => const ResultPage(),
-        '/inspection': (context) => const InspectionPage(),
-        '/settings': (context) => const SettingsPage(),
-        '/feedback_form': (context) => const FeedbackFormPage(),
+        AppRoutes.login: (context) => const LoginPage(),
+        AppRoutes.register: (context) => const RegisterPage(),
+        AppRoutes.home: (context) => MainNavigator(role: role),
+        AppRoutes.result: (context) => const ResultPage(),
+        AppRoutes.inspection: (context) => const InspectionPage(),
+        AppRoutes.settings: (context) => const SettingsPage(),
+        AppRoutes.feedback: (context) => const FeedbackFormPage(),
       },
     );
   }

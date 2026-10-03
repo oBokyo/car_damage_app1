@@ -3,7 +3,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'package:http/http.dart' as http;
 import 'dart:convert';
 import 'dart:typed_data';
-import 'auth_pages.dart'; 
+import 'config.dart';
 
 class ResultPage extends StatelessWidget {
   const ResultPage({super.key});
@@ -120,7 +120,9 @@ class ResultPage extends StatelessWidget {
                             if (d.containsKey('damage_percent'))
                               Padding(
                                 padding: const EdgeInsets.only(left: 24, top: 6),
-                                child: Row(
+                                
+                                child: Wrap(
+                                  crossAxisAlignment: WrapCrossAlignment.center,
                                   children: [
                                     Text(
                                       "พื้นที่เสียหาย: $percent% | ",
@@ -169,7 +171,7 @@ class ResultPage extends StatelessWidget {
                 shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
               ),
               onPressed: () {
-                Navigator.pushNamedAndRemoveUntil(context, '/home', (route) => false);
+                Navigator.pushNamedAndRemoveUntil(context, AppRoutes.home, (route) => false);
               },
               icon: const Icon(Icons.home_rounded),
               label: const Text('เสร็จสิ้น / กลับหน้าหลัก', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
@@ -199,9 +201,12 @@ class _InspectionPageState extends State<InspectionPage> {
 
   Future<void> _loadRole() async {
     final prefs = await SharedPreferences.getInstance();
-    setState(() {
-      _userRole = prefs.getString('user_role') ?? 'user';
-    });
+    
+    if (mounted) {
+      setState(() {
+        _userRole = prefs.getString('user_role') ?? 'user';
+      });
+    }
   }
 
   @override
@@ -328,7 +333,9 @@ class _InspectionPageState extends State<InspectionPage> {
                             if (d.containsKey('damage_percent'))
                               Padding(
                                 padding: const EdgeInsets.only(left: 24, top: 6),
-                                child: Row(
+                                
+                                child: Wrap(
+                                  crossAxisAlignment: WrapCrossAlignment.center,
                                   children: [
                                     Text(
                                       "พื้นที่เสียหาย: $percent% | ",
@@ -377,7 +384,7 @@ class _InspectionPageState extends State<InspectionPage> {
                 onPressed: () {
                   Navigator.pushNamed(
                     context,
-                    '/feedback_form',
+                    AppRoutes.feedback,
                     arguments: inspection['id'].toString(), 
                   );
                 },
@@ -405,6 +412,14 @@ class _FeedbackFormPageState extends State<FeedbackFormPage> {
   bool _isLoading = false;
 
   @override
+  void dispose() {
+    _caseIdController.dispose();
+    _priceController.dispose();
+    _notesController.dispose();
+    super.dispose();
+  }
+
+  @override
   void didChangeDependencies() {
     super.didChangeDependencies();
     final caseIdArg = ModalRoute.of(context)?.settings.arguments as String?;
@@ -418,15 +433,22 @@ class _FeedbackFormPageState extends State<FeedbackFormPage> {
       ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('กรุณากรอกราคาประเมินใหม่')));
       return;
     }
+    
     setState(() => _isLoading = true);
+    
     try {
+      
+      final prefs = await SharedPreferences.getInstance();
+      final userId = prefs.getString('user_id') ?? '';
+
       final response = await http.post(
-        Uri.parse('$baseUrl/api/v1/feedback'),
+        Uri.parse('${AppConfig.baseUrl}/api/v1/feedback'),
         body: {
           'case_id': _caseIdController.text,
           'damage_type': _damageType,
           'corrected_price': _priceController.text,
           'notes': _notesController.text,
+          'user_id': userId, 
         },
       );
 
@@ -530,6 +552,16 @@ class _SettingsPageState extends State<SettingsPage> {
   String _userId = "";
 
   @override
+  void dispose() {
+    _nameController.dispose();
+    _emailController.dispose();
+    _currentPasswordController.dispose();
+    _newPasswordController.dispose();
+    _confirmPasswordController.dispose();
+    super.dispose();
+  }
+
+  @override
   void initState() {
     super.initState();
     _loadUserData();
@@ -537,11 +569,14 @@ class _SettingsPageState extends State<SettingsPage> {
 
   Future<void> _loadUserData() async {
     final prefs = await SharedPreferences.getInstance();
-    setState(() {
-      _userId = prefs.getString('user_id') ?? '';
-      _nameController.text = prefs.getString('user_name') ?? '';
-      _emailController.text = prefs.getString('user_email') ?? '';
-    });
+    
+    if (mounted) {
+      setState(() {
+        _userId = prefs.getString('user_id') ?? '';
+        _nameController.text = prefs.getString('user_name') ?? '';
+        _emailController.text = prefs.getString('user_email') ?? '';
+      });
+    }
   }
 
   Future<void> _updateProfile() async {
@@ -549,7 +584,7 @@ class _SettingsPageState extends State<SettingsPage> {
     setState(() => _isProfileLoading = true);
     try {
       final res = await http.post(
-        Uri.parse('$baseUrl/api/v1/update_profile'),
+        Uri.parse('${AppConfig.baseUrl}/api/v1/update_profile'),
         body: {'user_id': _userId, 'full_name': _nameController.text.trim()},
       );
       if (res.statusCode == 200) {
@@ -557,7 +592,13 @@ class _SettingsPageState extends State<SettingsPage> {
         await prefs.setString('user_name', _nameController.text.trim());
         if (mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('อัปเดตชื่อสำเร็จ!'), backgroundColor: Colors.green));
       }
-    } catch (e) {} finally {
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('เกิดข้อผิดพลาดในการเชื่อมต่อ'), backgroundColor: Colors.red),
+        );
+      }
+    } finally {
       if (mounted) setState(() => _isProfileLoading = false);
     }
   }
@@ -570,7 +611,7 @@ class _SettingsPageState extends State<SettingsPage> {
     setState(() => _isPasswordLoading = true);
     try {
       final res = await http.post(
-        Uri.parse('$baseUrl/api/v1/update_password'),
+        Uri.parse('${AppConfig.baseUrl}/api/v1/update_password'),
         body: {
           'user_id': _userId,
           'current_password': _currentPasswordController.text,
@@ -583,7 +624,13 @@ class _SettingsPageState extends State<SettingsPage> {
           _currentPasswordController.clear(); _newPasswordController.clear(); _confirmPasswordController.clear();
         }
       }
-    } catch (e) {} finally {
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('เกิดข้อผิดพลาดในการเชื่อมต่อ'), backgroundColor: Colors.red),
+        );
+      }
+    } finally {
       if (mounted) setState(() => _isPasswordLoading = false);
     }
   }
@@ -650,7 +697,7 @@ class _SettingsPageState extends State<SettingsPage> {
               onTap: () async {
                 final prefs = await SharedPreferences.getInstance();
                 await prefs.clear(); 
-                if (context.mounted) Navigator.pushNamedAndRemoveUntil(context, '/login', (route) => false);
+                if (context.mounted) Navigator.pushNamedAndRemoveUntil(context, AppRoutes.login, (route) => false);
               },
             ),
           ],

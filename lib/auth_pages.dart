@@ -1,15 +1,8 @@
 import 'package:flutter/material.dart';
-import 'package:flutter/foundation.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:http/http.dart' as http;
 import 'dart:convert';
-import 'main_pages.dart';
-
-final String baseUrl = kIsWeb
-    ? 'http://127.0.0.1:8000'
-    : (defaultTargetPlatform == TargetPlatform.android
-        ? 'http://10.0.2.2:8000'
-        : 'http://127.0.0.1:8000');
+import 'config.dart';
 
 class LoginPage extends StatefulWidget {
   const LoginPage({super.key});
@@ -22,6 +15,13 @@ class _LoginPageState extends State<LoginPage> {
   final _passwordController = TextEditingController();
   bool _isLoading = false;
   String _errorMessage = "";
+
+  @override
+  void dispose() {
+    _emailController.dispose();
+    _passwordController.dispose();
+    super.dispose();
+  }
 
   Future<void> _login() async {
     final email = _emailController.text.trim();
@@ -36,7 +36,7 @@ class _LoginPageState extends State<LoginPage> {
 
     try {
       final response = await http.post(
-        Uri.parse('$baseUrl/api/v1/login'),
+        Uri.parse('${AppConfig.baseUrl}/api/v1/login'),
         body: {'email': email, 'password': password},
       );
 
@@ -52,10 +52,7 @@ class _LoginPageState extends State<LoginPage> {
           await prefs.setString('user_role', role);
 
           if (mounted) {
-            Navigator.pushReplacement(
-              context,
-              MaterialPageRoute(builder: (context) => MainNavigator(role: role)),
-            );
+            Navigator.pushReplacementNamed(context, AppRoutes.home);
           }
         } else {
           setState(() => _errorMessage = "อีเมลหรือรหัสผ่านไม่ถูกต้อง");
@@ -153,7 +150,7 @@ class _LoginPageState extends State<LoginPage> {
                   ),
                   const SizedBox(height: 16),
                   TextButton(
-                    onPressed: () => Navigator.pushNamed(context, '/register'),
+                    onPressed: () => Navigator.pushNamed(context, AppRoutes.register),
                     child: const Text('ยังไม่มีบัญชีใช่ไหม? สร้างบัญชีใหม่', style: TextStyle(color: Color(0xFF2563EB), fontWeight: FontWeight.w600, fontSize: 14)),
                   )
                 ],
@@ -180,6 +177,15 @@ class _RegisterPageState extends State<RegisterPage> {
   bool _isLoading = false;
   String _errorMessage = "";
 
+  @override
+  void dispose() {
+    _nameController.dispose();
+    _emailController.dispose();
+    _passwordController.dispose();
+    _confirmController.dispose();
+    super.dispose();
+  }
+
   Future<void> _register() async {
     final name = _nameController.text.trim();
     final email = _emailController.text.trim();
@@ -199,7 +205,7 @@ class _RegisterPageState extends State<RegisterPage> {
 
     try {
       final response = await http.post(
-        Uri.parse('$baseUrl/api/v1/register'),
+        Uri.parse('${AppConfig.baseUrl}/api/v1/register'),
         body: {'full_name': name, 'email': email, 'password': password},
       );
 

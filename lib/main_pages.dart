@@ -5,7 +5,8 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'package:http/http.dart' as http;
 import 'dart:convert';
 import 'dart:io';
-import 'auth_pages.dart';
+import 'dart:typed_data';
+import 'config.dart';
 
 class MainNavigator extends StatefulWidget {
   final String role;
@@ -29,7 +30,11 @@ class _MainNavigatorState extends State<MainNavigator> {
         NavigationDestination(icon: Icon(Icons.assignment_turned_in), label: 'ประวัติ Feedback'),
       ];
     } else {
-      _pages = [const HomePage(), const UploadPage(), const HistoryPage(isTech: false)];
+      _pages = [
+        HomePage(onNavigate: (index) => setState(() => _currentIndex = index)), 
+        const UploadPage(), 
+        const HistoryPage(isTech: false)
+      ];
       _destinations = const [
         NavigationDestination(icon: Icon(Icons.grid_view_rounded), label: 'หน้าหลัก'),
         NavigationDestination(icon: Icon(Icons.cloud_upload_outlined), selectedIcon: Icon(Icons.cloud_upload, color: Color(0xFF2563EB)), label: 'อัปโหลด'),
@@ -67,11 +72,14 @@ class _MainNavigatorState extends State<MainNavigator> {
         actions: [
           IconButton(
             icon: const Icon(Icons.settings_outlined),
-            onPressed: () => Navigator.pushNamed(context, '/settings'),
+            onPressed: () => Navigator.pushNamed(context, AppRoutes.settings),
           )
         ],
       ),
-      body: _pages[_currentIndex],
+      body: IndexedStack(
+        index: _currentIndex,
+        children: _pages,
+      ),
       bottomNavigationBar: Container(
         decoration: const BoxDecoration(border: Border(top: BorderSide(color: Color(0xFFE2E8F0)))),
         child: NavigationBar(
@@ -87,15 +95,14 @@ class _MainNavigatorState extends State<MainNavigator> {
 }
 
 class HomePage extends StatefulWidget {
-  const HomePage({super.key});
+  final Function(int)? onNavigate;
+  const HomePage({super.key, this.onNavigate});
   @override
   State<HomePage> createState() => _HomePageState();
 }
 
 class _HomePageState extends State<HomePage> {
   int _totalCount = 0;
-  String _apiStatus = "กำลังตรวจสอบ...";
-  Color _statusColor = Colors.orange;
   String _userName = "";
 
   @override
@@ -106,25 +113,33 @@ class _HomePageState extends State<HomePage> {
 
   Future<void> _loadDashboardData() async {
     final prefs = await SharedPreferences.getInstance();
-    setState(() => _userName = prefs.getString('user_name') ?? 'ผู้ใช้งาน');
+    
+    if (mounted) {
+      setState(() => _userName = prefs.getString('user_name') ?? 'ผู้ใช้งาน');
+    }
+    
     try {
       final userId = prefs.getString('user_id') ?? 'unknown';
-      final res = await http.get(Uri.parse('$baseUrl/api/v1/history/$userId'));
+      final res = await http.get(Uri.parse('${AppConfig.baseUrl}/api/v1/history/$userId'));
+      
       if (res.statusCode == 200) {
         final data = jsonDecode(res.body);
-        if (data['status'] == 'success') {
+        if (data['status'] == 'success' && mounted) {
           setState(() {
-            _apiStatus = "Online (Connected)";
-            _statusColor = const Color(0xFF059669);
             _totalCount = (data['data'] as List?)?.length ?? 0;
           });
         }
       }
     } catch (e) {
-      setState(() {
-        _apiStatus = "Connection Error";
-        _statusColor = const Color(0xFFE11D48);
-      });
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('ไม่สามารถดึงข้อมูลหน้าหลักได้ กรุณาลองใหม่อีกครั้ง'),
+            backgroundColor: Color(0xFFEA580C),
+            duration: Duration(seconds: 2),
+          ),
+        );
+      }
     }
   }
 
@@ -138,117 +153,105 @@ class _HomePageState extends State<HomePage> {
 
   @override
   Widget build(BuildContext context) {
-    return SingleChildScrollView(
-      padding: const EdgeInsets.all(20),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          Text("สวัสดี, $_userName 👋", style: const TextStyle(fontSize: 22, fontWeight: FontWeight.bold, color: Color(0xFF0F172A))),
-          const SizedBox(height: 16),
-          Container(
-            padding: const EdgeInsets.all(24),
-            decoration: BoxDecoration(
-              gradient: const LinearGradient(
-                colors: [Color(0xFF1D4ED8), Color(0xFF4338CA), Color(0xFF0F172A)],
-                begin: Alignment.topLeft,
-                end: Alignment.bottomRight,
-              ),
-              borderRadius: BorderRadius.circular(24),
-              boxShadow: [
-                BoxShadow(color: const Color(0xFF2563EB).withOpacity(0.25), blurRadius: 16, offset: const Offset(0, 8))
-              ],
-            ),
+    return Center(
+      child: ConstrainedBox(
+        constraints: const BoxConstraints(maxWidth: 800),
+        child: RefreshIndicator(
+          onRefresh: _loadDashboardData,
+          child: SingleChildScrollView(
+            physics: const AlwaysScrollableScrollPhysics(),
+            padding: const EdgeInsets.all(20),
             child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
+              crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
+                Text("สวัสดี, $_userName 👋", style: const TextStyle(fontSize: 22, fontWeight: FontWeight.bold, color: Color(0xFF0F172A))),
+                const SizedBox(height: 16),
+                
                 Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                  decoration: BoxDecoration(color: Colors.white.withOpacity(0.15), borderRadius: BorderRadius.circular(20)),
-                  child: const Row(
-                    mainAxisSize: MainAxisSize.min,
+                  padding: const EdgeInsets.all(24),
+                  decoration: BoxDecoration(
+                    gradient: const LinearGradient(
+                      colors: [Color(0xFF1D4ED8), Color(0xFF4338CA), Color(0xFF0F172A)],
+                      begin: Alignment.topLeft,
+                      end: Alignment.bottomRight,
+                    ),
+                    borderRadius: BorderRadius.circular(24),
+                    boxShadow: [
+                      BoxShadow(color: const Color(0xFF2563EB).withOpacity(0.25), blurRadius: 16, offset: const Offset(0, 8))
+                    ],
+                  ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Icon(Icons.auto_awesome, size: 12, color: Color(0xFF93C5FD)),
-                      SizedBox(width: 6),
-                      Text("AI-Powered System", style: TextStyle(color: Color(0xFFE0F2FE), fontSize: 11, fontWeight: FontWeight.bold)),
+                      Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                        decoration: BoxDecoration(color: Colors.white.withOpacity(0.15), borderRadius: BorderRadius.circular(20)),
+                        child: const Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Icon(Icons.auto_awesome, size: 12, color: Color(0xFF93C5FD)),
+                            SizedBox(width: 6),
+                            Text("AI-Powered System", style: TextStyle(color: Color(0xFFE0F2FE), fontSize: 11, fontWeight: FontWeight.bold)),
+                          ],
+                        ),
+                      ),
+                      const SizedBox(height: 14),
+                      const Text(
+                        "ระบบตรวจจับและแบ่งส่วน\nรอยเสียหายรถยนต์",
+                        style: TextStyle(color: Colors.white, fontSize: 22, fontWeight: FontWeight.w800, height: 1.25),
+                      ),
                     ],
                   ),
                 ),
-                const SizedBox(height: 14),
-                const Text(
-                  "ระบบตรวจจับและแบ่งส่วน\nรอยเสียหายรถยนต์",
-                  style: TextStyle(color: Colors.white, fontSize: 22, fontWeight: FontWeight.w800, height: 1.25),
+                const SizedBox(height: 28),
+
+                LayoutBuilder(
+                  builder: (context, constraints) {
+                    int crossAxisCount = constraints.maxWidth > 600 ? 6 : 4;
+                    return GridView.count(
+                      crossAxisCount: crossAxisCount,
+                      shrinkWrap: true,
+                      physics: const NeverScrollableScrollPhysics(),
+                      mainAxisSpacing: 16,
+                      crossAxisSpacing: 12,
+                      childAspectRatio: 0.85,
+                      children: [
+                        _buildMenuIcon("ประเมินราคา", Icons.camera_enhance_rounded, const Color(0xFFEFF6FF), const Color(0xFF2563EB), () => widget.onNavigate?.call(1)),
+                        _buildMenuIcon("ประวัติ", Icons.history_rounded, const Color(0xFFF0FDF4), const Color(0xFF16A34A), () => widget.onNavigate?.call(2)),
+                        _buildMenuIcon("เคส($_totalCount)", Icons.folder_open_rounded, const Color(0xFFFFF7ED), const Color(0xFFEA580C), () => widget.onNavigate?.call(2)),
+                        _buildMenuIcon("ตั้งค่า", Icons.settings_rounded, const Color(0xFFF1F5F9), const Color(0xFF475569), () => Navigator.pushNamed(context, AppRoutes.settings)),
+                        _buildMenuIcon("แจ้งเหตุ (191)", Icons.local_police_rounded, const Color(0xFFFEF2F2), const Color(0xFFE11D48), () => _callEmergency('191')),
+                        _buildMenuIcon("กู้ชีพ (1669)", Icons.medical_services_rounded, const Color(0xFFFFF1F2), const Color(0xFFBE123C), () => _callEmergency('1669')),
+                        _buildMenuIcon("วิริยะฯ", Icons.shield_rounded, const Color(0xFFF0F9FF), const Color(0xFF0284C7), () => _callEmergency('1557')),
+                        _buildMenuIcon("สินมั่นคง", Icons.security_rounded, const Color(0xFFFEFCE8), const Color(0xFFCA8A04), () => _callEmergency('1596')),
+                      ],
+                    );
+                  }
                 ),
-                const SizedBox(height: 8),
-                const Text("วิเคราะห์รอยแตก รอยบุบ และประเมินราคาซ่อมด้วยเทคโนโลยี Segmentation", style: TextStyle(color: Color(0xFF93C5FD), fontSize: 13)),
               ],
             ),
           ),
-          const SizedBox(height: 20),
-          Row(
-            children: [
-              Expanded(child: _buildCard("เคสทั้งหมด", "$_totalCount", Icons.folder_open_rounded, const Color(0xFF2563EB))),
-              const SizedBox(width: 14),
-              Expanded(child: _buildCard("สถานะ API", _apiStatus, Icons.dns_rounded, _statusColor)),
-            ],
-          ),
-          
-          const SizedBox(height: 28),
-          const Text("ศูนย์ช่วยเหลือและประกันภัย", style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Color(0xFF0F172A))),
-          const SizedBox(height: 16),
-          GridView.count(
-            crossAxisCount: 2,
-            shrinkWrap: true,
-            physics: const NeverScrollableScrollPhysics(),
-            mainAxisSpacing: 12,
-            crossAxisSpacing: 12,
-            childAspectRatio: 2.5,
-            children: [
-              _buildEmergencyBtn("เหตุด่วนเหตุร้าย (191)", Icons.local_police_rounded, const Color(0xFFE11D48), () => _callEmergency('191')),
-              _buildEmergencyBtn("เจ็บป่วยฉุกเฉิน (1669)", Icons.medical_services_rounded, const Color(0xFFEA580C), () => _callEmergency('1669')),
-              _buildEmergencyBtn("วิริยะประกันภัย", Icons.shield_rounded, const Color(0xFF0284C7), () => _callEmergency('1557')),
-              _buildEmergencyBtn("สินมั่นคงประกันภัย", Icons.security_rounded, const Color(0xFFF59E0B), () => _callEmergency('1596')),
-            ],
-          )
-        ],
+        ),
       ),
     );
   }
 
-  Widget _buildCard(String title, String value, IconData icon, Color color) {
-    return Container(
-      padding: const EdgeInsets.all(18),
-      decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(18), border: Border.all(color: const Color(0xFFE2E8F0))),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Icon(icon, color: color, size: 28),
-          const SizedBox(height: 12),
-          Text(title, style: const TextStyle(color: Color(0xFF64748B), fontSize: 12, fontWeight: FontWeight.w600)),
-          const SizedBox(height: 4),
-          Text(value, style: const TextStyle(color: Color(0xFF0F172A), fontSize: 15, fontWeight: FontWeight.bold), maxLines: 1, overflow: TextOverflow.ellipsis),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildEmergencyBtn(String title, IconData icon, Color color, VoidCallback onTap) {
+  Widget _buildMenuIcon(String title, IconData icon, Color bgColor, Color iconColor, VoidCallback onTap) {
     return InkWell(
       onTap: onTap,
-      borderRadius: BorderRadius.circular(14),
-      child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 12),
-        decoration: BoxDecoration(
-          color: color.withOpacity(0.1),
-          borderRadius: BorderRadius.circular(14),
-          border: Border.all(color: color.withOpacity(0.3)),
-        ),
-        child: Row(
-          children: [
-            Icon(icon, color: color, size: 22),
-            const SizedBox(width: 8),
-            Expanded(child: Text(title, style: TextStyle(color: color, fontWeight: FontWeight.bold, fontSize: 12), maxLines: 2)),
-          ],
-        ),
+      borderRadius: BorderRadius.circular(16),
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.start,
+        children: [
+          Container(
+            width: 60,
+            height: 60,
+            decoration: BoxDecoration(color: bgColor, borderRadius: BorderRadius.circular(18)),
+            child: Icon(icon, color: iconColor, size: 32),
+          ),
+          const SizedBox(height: 8),
+          Text(title, style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: Color(0xFF334155)), textAlign: TextAlign.center, maxLines: 1, overflow: TextOverflow.ellipsis),
+        ],
       ),
     );
   }
@@ -264,7 +267,8 @@ class _UploadPageState extends State<UploadPage> {
   XFile? _image;
   Uint8List? _webImage;
   bool _isLoading = false;
-  final _vehicleIdController = TextEditingController(text: "HONDA-CIVIC");
+  
+  String _selectedVehicle = 'HONDA-CIVIC'; 
   final List<String> _selectedLocations = ['front_bumper'];
 
   final List<Map<String, String>> _locationOptions = const [
@@ -306,8 +310,8 @@ class _UploadPageState extends State<UploadPage> {
       final prefs = await SharedPreferences.getInstance();
       final userId = prefs.getString('user_id') ?? 'unknown';
 
-      var req = http.MultipartRequest('POST', Uri.parse('$baseUrl/predict'));
-      req.fields['vehicle_id'] = _vehicleIdController.text;
+      var req = http.MultipartRequest('POST', Uri.parse('${AppConfig.baseUrl}/predict'));
+      req.fields['vehicle_id'] = _selectedVehicle; 
       req.fields['car_locations'] = jsonEncode(_selectedLocations);
       req.fields['user_id'] = userId;
 
@@ -323,7 +327,7 @@ class _UploadPageState extends State<UploadPage> {
       if (response.statusCode == 200 || response.statusCode == 201) {
         var json = jsonDecode(response.body);
         if (mounted) {
-          Navigator.pushNamed(context, '/result', arguments: json);
+          Navigator.pushNamed(context, AppRoutes.result, arguments: json);
         }
       } else {
         ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('เกิดข้อผิดพลาด: ${response.body}')));
@@ -337,94 +341,108 @@ class _UploadPageState extends State<UploadPage> {
 
   @override
   Widget build(BuildContext context) {
-    return ListView(
-      padding: const EdgeInsets.all(20),
-      children: [
-        const Text("รหัสรถยนต์ (Vehicle ID)", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14)),
-        const SizedBox(height: 8),
-        TextField(controller: _vehicleIdController, decoration: const InputDecoration(prefixIcon: Icon(Icons.directions_car_rounded))),
-        const SizedBox(height: 20),
-
-        Row(
-          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+    return Center(
+      child: ConstrainedBox(
+        constraints: const BoxConstraints(maxWidth: 600),
+        child: ListView(
+          padding: const EdgeInsets.all(20),
           children: [
-            const Text("เลือกชิ้นส่วนรถยนต์", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14)),
-            TextButton.icon(
-              onPressed: () => setState(() => _selectedLocations.add('front_bumper')),
-              icon: const Icon(Icons.add_rounded, size: 18),
-              label: const Text("เพิ่มชิ้นส่วน"),
+            const Text("เลือกรุ่นรถยนต์ (Vehicle Model)", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14)),
+            const SizedBox(height: 8),
+            
+            DropdownButtonFormField<String>(
+              value: _selectedVehicle,
+              decoration: const InputDecoration(prefixIcon: Icon(Icons.directions_car_rounded)),
+              items: const [
+                DropdownMenuItem(value: 'HONDA-CIVIC', child: Text('HONDA-CIVIC')),
+                DropdownMenuItem(value: 'HONDA-CITY', child: Text('HONDA-CITY')),
+              ],
+              onChanged: (val) => setState(() => _selectedVehicle = val!),
+            ),
+            const SizedBox(height: 20),
+
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                const Text("เลือกชิ้นส่วนรถยนต์", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14)),
+                TextButton.icon(
+                  onPressed: () => setState(() => _selectedLocations.add('front_bumper')),
+                  icon: const Icon(Icons.add_rounded, size: 18),
+                  label: const Text("เพิ่มชิ้นส่วน"),
+                )
+              ],
+            ),
+            const SizedBox(height: 6),
+
+            ...List.generate(_selectedLocations.length, (index) {
+              return Padding(
+                padding: const EdgeInsets.only(bottom: 10),
+                child: Row(
+                  children: [
+                    Expanded(
+                      child: DropdownButtonFormField<String>(
+                        value: _selectedLocations[index],
+                        decoration: const InputDecoration(prefixIcon: Icon(Icons.build_circle_outlined)),
+                        items: _locationOptions.map((opt) => DropdownMenuItem(value: opt['value'], child: Text(opt['label']!))).toList(),
+                        onChanged: (val) => setState(() => _selectedLocations[index] = val!),
+                      ),
+                    ),
+                    if (_selectedLocations.length > 1)
+                      IconButton(
+                        icon: const Icon(Icons.delete_outline_rounded, color: Color(0xFFE11D48)),
+                        onPressed: () => setState(() => _selectedLocations.removeAt(index)),
+                      )
+                  ],
+                ),
+              );
+            }),
+
+            const SizedBox(height: 20),
+            const Text("เลือกรูปภาพความเสียหาย", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14)),
+            const SizedBox(height: 8),
+
+            GestureDetector(
+              onTap: _pickImage,
+              child: Container(
+                height: 400,
+                width: double.infinity,
+                decoration: BoxDecoration(
+                  color: const Color(0xFFF8FAFC),
+                  border: Border.all(color: const Color(0xFFCBD5E1), width: 1.5),
+                  borderRadius: BorderRadius.circular(18),
+                ),
+                child: _image != null
+                    ? ClipRRect(
+                        borderRadius: BorderRadius.circular(16),
+                        child: kIsWeb ? Image.memory(_webImage!, fit: BoxFit.contain) : Image.file(File(_image!.path), fit: BoxFit.contain),
+                      )
+                    : const Column(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          Icon(Icons.camera_alt_rounded, size: 54, color: Color(0xFF2563EB)),
+                          SizedBox(height: 12),
+                          Text('คลิกเพื่ออัปโหลดรูปภาพ', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16, color: Color(0xFF334155))),
+                          Text('รองรับไฟล์ JPG, PNG', style: TextStyle(fontSize: 13, color: Color(0xFF94A3B8))),
+                        ],
+                      ),
+              ),
+            ),
+            const SizedBox(height: 28),
+
+            ElevatedButton.icon(
+              style: ElevatedButton.styleFrom(
+                backgroundColor: const Color(0xFF2563EB),
+                foregroundColor: Colors.white,
+                minimumSize: const Size(double.infinity, 54),
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+              ),
+              onPressed: _isLoading ? null : _submitInspection,
+              icon: _isLoading ? const SizedBox.shrink() : const Icon(Icons.memory_rounded),
+              label: _isLoading ? const CircularProgressIndicator(color: Colors.white) : const Text('เริ่มวิเคราะห์ความเสียหายด้วย AI', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
             )
           ],
         ),
-        const SizedBox(height: 6),
-
-        ...List.generate(_selectedLocations.length, (index) {
-          return Padding(
-            padding: const EdgeInsets.only(bottom: 10),
-            child: Row(
-              children: [
-                Expanded(
-                  child: DropdownButtonFormField<String>(
-                    value: _selectedLocations[index],
-                    decoration: const InputDecoration(prefixIcon: Icon(Icons.build_circle_outlined)),
-                    items: _locationOptions.map((opt) => DropdownMenuItem(value: opt['value'], child: Text(opt['label']!))).toList(),
-                    onChanged: (val) => setState(() => _selectedLocations[index] = val!),
-                  ),
-                ),
-                if (_selectedLocations.length > 1)
-                  IconButton(
-                    icon: const Icon(Icons.delete_outline_rounded, color: Color(0xFFE11D48)),
-                    onPressed: () => setState(() => _selectedLocations.removeAt(index)),
-                  )
-              ],
-            ),
-          );
-        }),
-
-        const SizedBox(height: 20),
-        const Text("เลือกรูปภาพความเสียหาย", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14)),
-        const SizedBox(height: 8),
-
-        GestureDetector(
-          onTap: _pickImage,
-          child: Container(
-            height: 500,
-            width: double.infinity,
-            decoration: BoxDecoration(
-              color: const Color(0xFFF8FAFC),
-              border: Border.all(color: const Color(0xFFCBD5E1), width: 1.5),
-              borderRadius: BorderRadius.circular(18),
-            ),
-            child: _image != null
-                ? ClipRRect(
-                    borderRadius: BorderRadius.circular(16),
-                    child: kIsWeb ? Image.memory(_webImage!, fit: BoxFit.contain) : Image.file(File(_image!.path), fit: BoxFit.contain),
-                  )
-                : const Column(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      Icon(Icons.camera_alt_rounded, size: 54, color: Color(0xFF2563EB)),
-                      SizedBox(height: 12),
-                      Text('คลิกเพื่ออัปโหลดรูปภาพ', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16, color: Color(0xFF334155))),
-                      Text('รองรับไฟล์ JPG, PNG', style: TextStyle(fontSize: 13, color: Color(0xFF94A3B8))),
-                    ],
-                  ),
-          ),
-        ),
-        const SizedBox(height: 28),
-
-        ElevatedButton.icon(
-          style: ElevatedButton.styleFrom(
-            backgroundColor: const Color(0xFF2563EB),
-            foregroundColor: Colors.white,
-            minimumSize: const Size(double.infinity, 54),
-            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
-          ),
-          onPressed: _isLoading ? null : _submitInspection,
-          icon: _isLoading ? const SizedBox.shrink() : const Icon(Icons.memory_rounded),
-          label: _isLoading ? const CircularProgressIndicator(color: Colors.white) : const Text('เริ่มวิเคราะห์ความเสียหายด้วย AI', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
-        )
-      ],
+      ),
     );
   }
 }
@@ -439,56 +457,115 @@ class HistoryPage extends StatefulWidget {
 class _HistoryPageState extends State<HistoryPage> {
   List _items = [];
   bool _isLoading = true;
+  bool _hasError = false;
 
   @override
   void initState() {
     super.initState();
-    _fetchHistory();
+    
+    _fetchHistory(showSpinner: true);
   }
 
-  Future<void> _fetchHistory() async {
+  
+  Future<void> _fetchHistory({bool showSpinner = false}) async {
+    if (mounted) setState(() => _hasError = false);
+
+    if (showSpinner && mounted) {
+      setState(() { _isLoading = true; _hasError = false; });
+    }
+    
     try {
       final prefs = await SharedPreferences.getInstance();
       final userId = prefs.getString('user_id') ?? 'unknown';
 
-      final res = await http.get(Uri.parse('$baseUrl/api/v1/history/$userId'));
+      final res = await http.get(Uri.parse('${AppConfig.baseUrl}/api/v1/history/$userId'));
       if (res.statusCode == 200) {
         final data = jsonDecode(res.body);
-        setState(() => _items = data['data'] ?? []);
+        if (mounted) setState(() => _items = data['data'] ?? []);
+      } else {
+        if (mounted) setState(() => _hasError = true);
       }
     } catch (e) {
       debugPrint("Error fetching history: $e");
+      if (mounted) setState(() => _hasError = true);
     } finally {
-      if (mounted) setState(() => _isLoading = false);
+      if (showSpinner && mounted) setState(() => _isLoading = false);
     }
   }
 
   @override
   Widget build(BuildContext context) {
-    return _isLoading
-        ? const Center(child: CircularProgressIndicator())
-        : _items.isEmpty
-            ? const Center(child: Text("ยังไม่มีประวัติในระบบ", style: TextStyle(color: Color(0xFF94A3B8))))
-            : ListView.builder(
-                padding: const EdgeInsets.all(16),
-                itemCount: _items.length,
-                itemBuilder: (context, index) {
-                  final item = _items[index];
-                  return Card(
-                    elevation: 0,
-                    color: Colors.white,
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16), side: const BorderSide(color: Color(0xFFE2E8F0))),
-                    margin: const EdgeInsets.only(bottom: 12),
-                    child: ListTile(
-                      contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-                      title: Text("รหัสเคส: #${item['id']}", style: const TextStyle(fontWeight: FontWeight.bold)),
-                      subtitle: Text("รหัสรถ: ${item['vehicle_id']}\nวันที่: ${item['created_at']?.toString().split('T').first ?? ''}"),
-                      trailing: const Icon(Icons.chevron_right_rounded, color: Color(0xFF2563EB)),
-                      onTap: () => Navigator.pushNamed(context, '/inspection', arguments: item),
-                    ),
-                  );
-                },
-              );
+    if (_isLoading) {
+      return Center(
+        
+        child: ConstrainedBox(
+          constraints: BoxConstraints(maxWidth: 800),
+          child: Center(child: CircularProgressIndicator()),
+        ),
+      );
+    }
+
+    if (_hasError) {
+      return Center(
+        child: ConstrainedBox(
+          constraints: const BoxConstraints(maxWidth: 800),
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              const Icon(Icons.wifi_off_rounded, color: Color(0xFF94A3B8), size: 48),
+              const SizedBox(height: 16),
+              const Text("ไม่สามารถเชื่อมต่อเซิร์ฟเวอร์ได้", style: TextStyle(color: Color(0xFF64748B))),
+              const SizedBox(height: 16),
+              ElevatedButton.icon(
+                onPressed: () => _fetchHistory(showSpinner: true),
+                icon: const Icon(Icons.refresh),
+                label: const Text('ลองใหม่'),
+                style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFF2563EB), foregroundColor: Colors.white),
+              )
+            ],
+          ),
+        ),
+      );
+    }
+
+    return Center(
+      child: ConstrainedBox(
+        constraints: const BoxConstraints(maxWidth: 800),
+        child: RefreshIndicator(
+          onRefresh: () => _fetchHistory(showSpinner: false), 
+          child: _items.isEmpty
+              ? SingleChildScrollView(
+                  physics: const AlwaysScrollableScrollPhysics(),
+                  child: Container(
+                    height: MediaQuery.of(context).size.height * 0.6,
+                    alignment: Alignment.center,
+                    child: const Text("ยังไม่มีประวัติในระบบ", style: TextStyle(color: Color(0xFF94A3B8))),
+                  ),
+                )
+              : ListView.builder(
+                  physics: const AlwaysScrollableScrollPhysics(),
+                  padding: const EdgeInsets.all(16),
+                  itemCount: _items.length,
+                  itemBuilder: (context, index) {
+                    final item = _items[index];
+                    return Card(
+                      elevation: 0,
+                      color: Colors.white,
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16), side: const BorderSide(color: Color(0xFFE2E8F0))),
+                      margin: const EdgeInsets.only(bottom: 12),
+                      child: ListTile(
+                        contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                        title: Text("รหัสเคส: #${item['id']}", style: const TextStyle(fontWeight: FontWeight.bold)),
+                        subtitle: Text("รหัสรถ: ${item['vehicle_id']}\nวันที่: ${item['created_at']?.toString().split('T').first ?? ''}"),
+                        trailing: const Icon(Icons.chevron_right_rounded, color: Color(0xFF2563EB)),
+                        onTap: () => Navigator.pushNamed(context, AppRoutes.inspection, arguments: item),
+                      ),
+                    );
+                  },
+                ),
+        ),
+      ),
+    );
   }
 }
 
@@ -501,62 +578,123 @@ class FeedbackHistoryPage extends StatefulWidget {
 class _FeedbackHistoryPageState extends State<FeedbackHistoryPage> {
   List _feedbackItems = [];
   bool _isLoading = true;
+  bool _hasError = false; 
 
   @override
   void initState() {
     super.initState();
-    _fetchFeedbackHistory();
+    _fetchFeedbackHistory(showSpinner: true);
   }
 
-  Future<void> _fetchFeedbackHistory() async {
+  Future<void> _fetchFeedbackHistory({bool showSpinner = false}) async {
+    if (mounted) setState(() => _hasError = false);
+
+    if (showSpinner && mounted) {
+      setState(() { _isLoading = true; _hasError = false; });
+    }
+    
     try {
-      final res = await http.get(Uri.parse('$baseUrl/api/v1/feedback_history'));
+      final prefs = await SharedPreferences.getInstance();
+      final userId = prefs.getString('user_id') ?? '';
+
+      final res = await http.get(
+        Uri.parse('${AppConfig.baseUrl}/api/v1/feedback_history?user_id=$userId')
+      );
       if (res.statusCode == 200) {
         final data = jsonDecode(res.body);
-        setState(() => _feedbackItems = data['data'] ?? []);
+        if (mounted) setState(() => _feedbackItems = data['data'] ?? []);
+      } else {
+        if (mounted) setState(() => _hasError = true);
       }
     } catch (e) {
       debugPrint("Error fetching feedback history: $e");
+      if (mounted) setState(() => _hasError = true);
     } finally {
-      if (mounted) setState(() => _isLoading = false);
+      if (showSpinner && mounted) setState(() => _isLoading = false);
     }
   }
 
   @override
   Widget build(BuildContext context) {
-    return _isLoading
-        ? const Center(child: CircularProgressIndicator())
-        : _feedbackItems.isEmpty
-            ? const Center(child: Text("ยังไม่มีประวัติการส่ง Feedback", style: TextStyle(color: Color(0xFF94A3B8))))
-            : ListView.builder(
-                padding: const EdgeInsets.all(16),
-                itemCount: _feedbackItems.length,
-                itemBuilder: (context, index) {
-                  final item = _feedbackItems[index];
-                  return Card(
-                    elevation: 0,
-                    color: Colors.white,
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16), side: const BorderSide(color: Color(0xFFE2E8F0))),
-                    margin: const EdgeInsets.only(bottom: 12),
-                    child: ListTile(
-                      contentPadding: const EdgeInsets.all(16),
-                      title: Text("อ้างอิงเคส: #${item['case_id']}", style: const TextStyle(fontWeight: FontWeight.bold, color: Color(0xFF0F172A))),
-                      subtitle: Padding(
-                        padding: const EdgeInsets.only(top: 8),
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text("แก้ไขเป็น: ${item['damage_label']}", style: const TextStyle(color: Color(0xFF059669), fontWeight: FontWeight.w600)),
-                            Text("ราคาใหม่: ${item['repair_cost']} บาท", style: const TextStyle(color: Color(0xFF64748B))),
-                            if (item['note'] != null && item['note'].toString().isNotEmpty)
-                              Text("หมายเหตุ: ${item['note']}", style: const TextStyle(color: Color(0xFF94A3B8), fontSize: 12)),
-                          ],
+    if (_isLoading) {
+      return Center(
+        child: ConstrainedBox(
+          constraints: BoxConstraints(maxWidth: 800),
+          child: Center(child: CircularProgressIndicator()),
+        ),
+      );
+    }
+
+    if (_hasError) {
+      return Center(
+        child: ConstrainedBox(
+          constraints: const BoxConstraints(maxWidth: 800),
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              const Icon(Icons.wifi_off_rounded, color: Color(0xFF94A3B8), size: 48),
+              const SizedBox(height: 16),
+              const Text("ไม่สามารถเชื่อมต่อเซิร์ฟเวอร์ได้", style: TextStyle(color: Color(0xFF64748B))),
+              const SizedBox(height: 16),
+              ElevatedButton.icon(
+                onPressed: () => _fetchFeedbackHistory(showSpinner: true),
+                icon: const Icon(Icons.refresh),
+                label: const Text('ลองใหม่'),
+                style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFF2563EB), foregroundColor: Colors.white),
+              )
+            ],
+          ),
+        ),
+      );
+    }
+
+    return Center(
+      child: ConstrainedBox(
+        constraints: const BoxConstraints(maxWidth: 800),
+        child: RefreshIndicator(
+          onRefresh: () => _fetchFeedbackHistory(showSpinner: false), 
+          child: _feedbackItems.isEmpty
+              ? SingleChildScrollView(
+                  physics: const AlwaysScrollableScrollPhysics(),
+                  child: Container(
+                    height: MediaQuery.of(context).size.height * 0.6,
+                    alignment: Alignment.center,
+                    child: const Text("ยังไม่มีประวัติการส่ง Feedback", style: TextStyle(color: Color(0xFF94A3B8))),
+                  ),
+                )
+              : ListView.builder(
+                  physics: const AlwaysScrollableScrollPhysics(),
+                  padding: const EdgeInsets.all(16),
+                  itemCount: _feedbackItems.length,
+                  itemBuilder: (context, index) {
+                    final item = _feedbackItems[index];
+                    return Card(
+                      elevation: 0,
+                      color: Colors.white,
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16), side: const BorderSide(color: Color(0xFFE2E8F0))),
+                      margin: const EdgeInsets.only(bottom: 12),
+                      child: ListTile(
+                        contentPadding: const EdgeInsets.all(16),
+                        title: Text("อ้างอิงเคส: #${item['case_id']}", style: const TextStyle(fontWeight: FontWeight.bold, color: Color(0xFF0F172A))),
+                        subtitle: Padding(
+                          padding: const EdgeInsets.only(top: 8),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text("แก้ไขเป็น: ${item['damage_label']}", style: const TextStyle(color: Color(0xFF059669), fontWeight: FontWeight.w600)),
+                              Text("ราคาใหม่: ${item['repair_cost']} บาท", style: const TextStyle(color: Color(0xFF64748B))),
+                              if (item['note'] != null && item['note'].toString().isNotEmpty)
+                                Text("หมายเหตุ: ${item['note']}", style: const TextStyle(color: Color(0xFF94A3B8), fontSize: 12)),
+                            ],
+                          ),
                         ),
+                        trailing: const Icon(Icons.check_circle, color: Color(0xFF059669)),
                       ),
-                      trailing: const Icon(Icons.check_circle, color: Color(0xFF059669)),
-                    ),
-                  );
-                },
-              );
+                    );
+                  },
+                ),
+        ),
+      ),
+    );
   }
 }
