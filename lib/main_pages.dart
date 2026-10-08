@@ -333,9 +333,14 @@ class _UploadPageState extends State<UploadPage> {
       final userId = prefs.getString('user_id') ?? 'unknown';
 
       var req = http.MultipartRequest('POST', Uri.parse('${AppConfig.baseUrl}/predict'));
+      
+      // 🟡 1. เพิ่มโค้ดบรรทัดนี้ เพื่อแปลงชื่อรถให้ตรงกับฐานข้อมูล ('civic' หรือ 'city')
+      String dbCarModel = _selectedVehicle.toLowerCase().contains('civic') ? 'civic' : 'city';
+
       req.fields['vehicle_id'] = _selectedVehicle; 
       req.fields['car_locations'] = jsonEncode(_selectedLocations);
       req.fields['user_id'] = userId;
+      req.fields['car_model'] = dbCarModel; // 🟡 2. เพิ่มบรรทัดนี้เพื่อส่งค่าไปให้ FastAPI
 
       if (kIsWeb) {
         req.files.add(http.MultipartFile.fromBytes('file', _webImage!, filename: _image!.name));
