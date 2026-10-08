@@ -6,6 +6,7 @@ import 'package:http/http.dart' as http;
 import 'dart:convert';
 import 'dart:io';
 import 'dart:typed_data';
+import 'dart:async'; // เพิ่มสำหรับ TimeoutException
 import 'config.dart';
 
 class MainNavigator extends StatefulWidget {
@@ -120,7 +121,8 @@ class _HomePageState extends State<HomePage> {
     
     try {
       final userId = prefs.getString('user_id') ?? 'unknown';
-      final res = await http.get(Uri.parse('${AppConfig.baseUrl}/api/v1/history/$userId'));
+      final res = await http.get(Uri.parse('${AppConfig.baseUrl}/api/v1/history/$userId'))
+          .timeout(const Duration(seconds: 15)); // เพิ่ม Timeout
       
       if (res.statusCode == 200) {
         final data = jsonDecode(res.body);
@@ -130,17 +132,21 @@ class _HomePageState extends State<HomePage> {
           });
         }
       }
+    } on TimeoutException {
+      if (mounted) _showErrorSnackBar('หมดเวลาเชื่อมต่อหน้าหลัก กรุณาลองใหม่');
     } catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('ไม่สามารถดึงข้อมูลหน้าหลักได้ กรุณาลองใหม่อีกครั้ง'),
-            backgroundColor: Color(0xFFEA580C),
-            duration: Duration(seconds: 2),
-          ),
-        );
-      }
+      if (mounted) _showErrorSnackBar('ไม่สามารถดึงข้อมูลหน้าหลักได้ กรุณาลองใหม่อีกครั้ง');
     }
+  }
+
+  void _showErrorSnackBar(String message) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(message),
+        backgroundColor: const Color(0xFFEA580C),
+        duration: const Duration(seconds: 2),
+      ),
+    );
   }
 
   void _callEmergency(String number) {
@@ -298,8 +304,24 @@ class _UploadPageState extends State<UploadPage> {
     }
   }
 
+  void _addLocation() {
+    final availableOptions = _locationOptions
+        .map((opt) => opt['value']!)
+        .where((val) => !_selectedLocations.contains(val))
+        .toList();
+    
+    if (availableOptions.isNotEmpty) {
+      setState(() => _selectedLocations.add(availableOptions.first));
+    } else {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('เลือกครบทุกชิ้นส่วนแล้ว')),
+      );
+    }
+  }
+
   Future<void> _submitInspection() async {
-    if (_image == null) {
+    // ปรับปรุงการเช็ครูปภาพให้รองรับทั้ง Web และ Mobile อย่างถูกต้อง
+    if ((!kIsWeb && _image == null) || (kIsWeb && _webImage == null)) {
       ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('กรุณาเลือกรูปภาพก่อนวิเคราะห์')));
       return;
     }
@@ -321,7 +343,8 @@ class _UploadPageState extends State<UploadPage> {
         req.files.add(await http.MultipartFile.fromPath('file', _image!.path));
       }
 
-      var streamedResponse = await req.send();
+      // เพิ่ม Timeout ให้กระบวนการส่งไฟล์
+      var streamedResponse = await req.send().timeout(const Duration(seconds: 30));
       var response = await http.Response.fromStream(streamedResponse);
 
       if (response.statusCode == 200 || response.statusCode == 201) {
@@ -330,10 +353,24 @@ class _UploadPageState extends State<UploadPage> {
           Navigator.pushNamed(context, AppRoutes.result, arguments: json);
         }
       } else {
-        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('เกิดข้อผิดพลาด: ${response.body}')));
+        // ปรับปรุงการแปลง JSON Error ให้เป็นมิตรกับผู้ใช้
+        String errorMessage = 'เกิดข้อผิดพลาดรหัส ${response.statusCode}';
+        try {
+          final errorData = jsonDecode(response.body);
+          errorMessage = errorData['detail'] ?? errorData['message'] ?? errorMessage;
+        } catch (_) {}
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(errorMessage)));
+        }
+      }
+    } on TimeoutException {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('เชื่อมต่อเซิร์ฟเวอร์นานเกินไป กรุณาลองใหม่')));
       }
     } catch (e) {
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('เกิดข้อผิดพลาดในการเชื่อมต่อ: $e')));
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('เกิดข้อผิดพลาดในการเชื่อมต่อเครือข่าย')));
+      }
     } finally {
       if (mounted) setState(() => _isLoading = false);
     }
@@ -366,7 +403,7 @@ class _UploadPageState extends State<UploadPage> {
               children: [
                 const Text("เลือกชิ้นส่วนรถยนต์", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14)),
                 TextButton.icon(
-                  onPressed: () => setState(() => _selectedLocations.add('front_bumper')),
+                  onPressed: _addLocation,
                   icon: const Icon(Icons.add_rounded, size: 18),
                   label: const Text("เพิ่มชิ้นส่วน"),
                 )
@@ -375,6 +412,11 @@ class _UploadPageState extends State<UploadPage> {
             const SizedBox(height: 6),
 
             ...List.generate(_selectedLocations.length, (index) {
+              // กรองตัวเลือกที่ถูกใช้ไปแล้วออก ยกเว้นตัวที่ถูกเลือกอยู่ใน Dropdown ปัจจุบัน
+              final filteredOptions = _locationOptions.where((opt) {
+                return !_selectedLocations.contains(opt['value']) || opt['value'] == _selectedLocations[index];
+              }).toList();
+
               return Padding(
                 padding: const EdgeInsets.only(bottom: 10),
                 child: Row(
@@ -383,7 +425,7 @@ class _UploadPageState extends State<UploadPage> {
                       child: DropdownButtonFormField<String>(
                         value: _selectedLocations[index],
                         decoration: const InputDecoration(prefixIcon: Icon(Icons.build_circle_outlined)),
-                        items: _locationOptions.map((opt) => DropdownMenuItem(value: opt['value'], child: Text(opt['label']!))).toList(),
+                        items: filteredOptions.map((opt) => DropdownMenuItem(value: opt['value'], child: Text(opt['label']!))).toList(),
                         onChanged: (val) => setState(() => _selectedLocations[index] = val!),
                       ),
                     ),
@@ -411,7 +453,7 @@ class _UploadPageState extends State<UploadPage> {
                   border: Border.all(color: const Color(0xFFCBD5E1), width: 1.5),
                   borderRadius: BorderRadius.circular(18),
                 ),
-                child: _image != null
+                child: ((kIsWeb && _webImage != null) || (!kIsWeb && _image != null))
                     ? ClipRRect(
                         borderRadius: BorderRadius.circular(16),
                         child: kIsWeb ? Image.memory(_webImage!, fit: BoxFit.contain) : Image.file(File(_image!.path), fit: BoxFit.contain),
@@ -458,38 +500,44 @@ class _HistoryPageState extends State<HistoryPage> {
   List _items = [];
   bool _isLoading = true;
   bool _hasError = false;
+  String _errorMessage = 'ไม่สามารถเชื่อมต่อเซิร์ฟเวอร์ได้';
 
   @override
   void initState() {
     super.initState();
-    
     _fetchHistory(showSpinner: true);
   }
 
-  
   Future<void> _fetchHistory({bool showSpinner = false}) async {
-    if (mounted) setState(() => _hasError = false);
-
-    if (showSpinner && mounted) {
-      setState(() { _isLoading = true; _hasError = false; });
+    if (mounted) {
+      setState(() {
+        _hasError = false;
+        if (showSpinner) _isLoading = true;
+      });
     }
     
     try {
       final prefs = await SharedPreferences.getInstance();
       final userId = prefs.getString('user_id') ?? 'unknown';
 
-      final res = await http.get(Uri.parse('${AppConfig.baseUrl}/api/v1/history/$userId'));
+      final res = await http.get(Uri.parse('${AppConfig.baseUrl}/api/v1/history/$userId'))
+          .timeout(const Duration(seconds: 15));
+          
       if (res.statusCode == 200) {
         final data = jsonDecode(res.body);
         if (mounted) setState(() => _items = data['data'] ?? []);
+      } else if (res.statusCode == 403) {
+        if (mounted) setState(() { _hasError = true; _errorMessage = 'ไม่มีสิทธิ์เข้าถึงข้อมูลส่วนนี้'; });
       } else {
-        if (mounted) setState(() => _hasError = true);
+        if (mounted) setState(() { _hasError = true; _errorMessage = 'เกิดข้อผิดพลาดรหัส ${res.statusCode}'; });
       }
+    } on TimeoutException {
+      if (mounted) setState(() { _hasError = true; _errorMessage = 'หมดเวลาเชื่อมต่อเซิร์ฟเวอร์'; });
     } catch (e) {
       debugPrint("Error fetching history: $e");
-      if (mounted) setState(() => _hasError = true);
+      if (mounted) setState(() { _hasError = true; _errorMessage = 'ไม่สามารถเชื่อมต่อเครือข่ายได้'; });
     } finally {
-      if (showSpinner && mounted) setState(() => _isLoading = false);
+      if (mounted && showSpinner) setState(() => _isLoading = false);
     }
   }
 
@@ -497,7 +545,6 @@ class _HistoryPageState extends State<HistoryPage> {
   Widget build(BuildContext context) {
     if (_isLoading) {
       return Center(
-        
         child: ConstrainedBox(
           constraints: BoxConstraints(maxWidth: 800),
           child: Center(child: CircularProgressIndicator()),
@@ -514,7 +561,7 @@ class _HistoryPageState extends State<HistoryPage> {
             children: [
               const Icon(Icons.wifi_off_rounded, color: Color(0xFF94A3B8), size: 48),
               const SizedBox(height: 16),
-              const Text("ไม่สามารถเชื่อมต่อเซิร์ฟเวอร์ได้", style: TextStyle(color: Color(0xFF64748B))),
+              Text(_errorMessage, style: const TextStyle(color: Color(0xFF64748B))),
               const SizedBox(height: 16),
               ElevatedButton.icon(
                 onPressed: () => _fetchHistory(showSpinner: true),
@@ -579,6 +626,7 @@ class _FeedbackHistoryPageState extends State<FeedbackHistoryPage> {
   List _feedbackItems = [];
   bool _isLoading = true;
   bool _hasError = false; 
+  String _errorMessage = 'ไม่สามารถเชื่อมต่อเซิร์ฟเวอร์ได้';
 
   @override
   void initState() {
@@ -587,10 +635,11 @@ class _FeedbackHistoryPageState extends State<FeedbackHistoryPage> {
   }
 
   Future<void> _fetchFeedbackHistory({bool showSpinner = false}) async {
-    if (mounted) setState(() => _hasError = false);
-
-    if (showSpinner && mounted) {
-      setState(() { _isLoading = true; _hasError = false; });
+    if (mounted) {
+      setState(() {
+        _hasError = false;
+        if (showSpinner) _isLoading = true;
+      });
     }
     
     try {
@@ -599,18 +648,23 @@ class _FeedbackHistoryPageState extends State<FeedbackHistoryPage> {
 
       final res = await http.get(
         Uri.parse('${AppConfig.baseUrl}/api/v1/feedback_history?user_id=$userId')
-      );
+      ).timeout(const Duration(seconds: 15));
+      
       if (res.statusCode == 200) {
         final data = jsonDecode(res.body);
         if (mounted) setState(() => _feedbackItems = data['data'] ?? []);
+      } else if (res.statusCode == 403) {
+        if (mounted) setState(() { _hasError = true; _errorMessage = 'ไม่มีสิทธิ์เข้าถึงข้อมูลส่วนนี้'; });
       } else {
-        if (mounted) setState(() => _hasError = true);
+        if (mounted) setState(() { _hasError = true; _errorMessage = 'เกิดข้อผิดพลาดรหัส ${res.statusCode}'; });
       }
+    } on TimeoutException {
+      if (mounted) setState(() { _hasError = true; _errorMessage = 'หมดเวลาเชื่อมต่อเซิร์ฟเวอร์'; });
     } catch (e) {
       debugPrint("Error fetching feedback history: $e");
-      if (mounted) setState(() => _hasError = true);
+      if (mounted) setState(() { _hasError = true; _errorMessage = 'ไม่สามารถเชื่อมต่อเครือข่ายได้'; });
     } finally {
-      if (showSpinner && mounted) setState(() => _isLoading = false);
+      if (mounted && showSpinner) setState(() => _isLoading = false);
     }
   }
 
@@ -634,7 +688,7 @@ class _FeedbackHistoryPageState extends State<FeedbackHistoryPage> {
             children: [
               const Icon(Icons.wifi_off_rounded, color: Color(0xFF94A3B8), size: 48),
               const SizedBox(height: 16),
-              const Text("ไม่สามารถเชื่อมต่อเซิร์ฟเวอร์ได้", style: TextStyle(color: Color(0xFF64748B))),
+              Text(_errorMessage, style: const TextStyle(color: Color(0xFF64748B))),
               const SizedBox(height: 16),
               ElevatedButton.icon(
                 onPressed: () => _fetchFeedbackHistory(showSpinner: true),
