@@ -5,8 +5,8 @@ import 'dart:convert';
 import 'dart:typed_data';
 import 'config.dart';
 
-// 🟢 ฟังก์ชันช่วยแสดงผลรูปภาพ รองรับทั้ง Public URL จาก Supabase Storage และ Base64
-Widget buildDamageImage(String imgUrl, Uint8List? imageBytes, {double radius = 20}) {
+Widget buildDamageImage(String imgUrl, Uint8List? imageBytes,
+    {double radius = 20}) {
   if (imgUrl.startsWith('http://') || imgUrl.startsWith('https://')) {
     return ClipRRect(
       borderRadius: BorderRadius.circular(radius),
@@ -42,7 +42,8 @@ Widget buildDamageImage(String imgUrl, Uint8List? imageBytes, {double radius = 2
     child: Column(
       mainAxisAlignment: MainAxisAlignment.center,
       children: [
-        Icon(Icons.image_not_supported_rounded, color: Colors.white38, size: 54),
+        Icon(Icons.image_not_supported_rounded,
+            color: Colors.white38, size: 54),
         SizedBox(height: 8),
         Text("ไม่พบไฟล์รูปภาพในเคสนี้",
             style: TextStyle(color: Colors.white54, fontSize: 13)),
@@ -57,7 +58,8 @@ class ResultPage extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final inspection =
-        ModalRoute.of(context)?.settings.arguments as Map<String, dynamic>? ?? {};
+        ModalRoute.of(context)?.settings.arguments as Map<String, dynamic>? ??
+            {};
 
     Uint8List? imageBytes;
     final imgUrl = inspection['image_url']?.toString() ?? '';
@@ -297,7 +299,8 @@ class _InspectionPageState extends State<InspectionPage> {
 
     if (mounted) {
       setState(() {
-        _userRole = (prefs.getString('user_role') ?? 'user').trim().toLowerCase();
+        _userRole =
+            (prefs.getString('user_role') ?? 'user').trim().toLowerCase();
       });
     }
   }
@@ -305,7 +308,8 @@ class _InspectionPageState extends State<InspectionPage> {
   @override
   Widget build(BuildContext context) {
     final inspection =
-        ModalRoute.of(context)?.settings.arguments as Map<String, dynamic>? ?? {};
+        ModalRoute.of(context)?.settings.arguments as Map<String, dynamic>? ??
+            {};
 
     Uint8List? imageBytes;
     final imgUrl = inspection['image_url']?.toString() ?? '';
@@ -615,14 +619,18 @@ class _FeedbackFormPageState extends State<FeedbackFormPage> {
           Navigator.pop(context, true);
         }
       } else {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('เกิดข้อผิดพลาด: ${response.body}')),
-        );
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text('เกิดข้อผิดพลาด: ${response.body}')),
+          );
+        }
       }
     } catch (e) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('เกิดข้อผิดพลาดในการเชื่อมต่อ: $e')),
-      );
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('เกิดข้อผิดพลาดในการเชื่อมต่อ: $e')),
+        );
+      }
     } finally {
       if (mounted) setState(() => _isLoading = false);
     }
@@ -663,9 +671,9 @@ class _FeedbackFormPageState extends State<FeedbackFormPage> {
             ),
             const SizedBox(height: 16),
             DropdownButtonFormField<String>(
-              value: _damageType,
-              decoration:
-                  const InputDecoration(labelText: 'ประเภทความเสียหายที่ถูกต้อง'),
+              initialValue: _damageType,
+              decoration: const InputDecoration(
+                  labelText: 'ประเภทความเสียหายที่ถูกต้อง'),
               items: const [
                 DropdownMenuItem(value: 'dent', child: Text('รอยบุบ (dent)')),
                 DropdownMenuItem(value: 'crack', child: Text('รอยแตก (crack)')),

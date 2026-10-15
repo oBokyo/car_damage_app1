@@ -5,7 +5,6 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'package:http/http.dart' as http;
 import 'dart:convert';
 import 'dart:io';
-import 'dart:typed_data';
 import 'dart:async';
 import 'config.dart';
 
@@ -28,7 +27,8 @@ class _MainNavigatorState extends State<MainNavigator> {
 
   Future<void> _loadUserRole() async {
     final prefs = await SharedPreferences.getInstance();
-    final savedRole = (prefs.getString('user_role') ?? 'user').trim().toLowerCase();
+    final savedRole =
+        (prefs.getString('user_role') ?? 'user').trim().toLowerCase();
     if (mounted) {
       setState(() {
         _role = savedRole;
@@ -50,7 +50,8 @@ class _MainNavigatorState extends State<MainNavigator> {
     final List<Widget> pages = isExpert
         ? [const HistoryPage(isTech: true), const FeedbackHistoryPage()]
         : [
-            HomePage(onNavigate: (index) => setState(() => _currentIndex = index)),
+            HomePage(
+                onNavigate: (index) => setState(() => _currentIndex = index)),
             const UploadPage(),
             const HistoryPage(isTech: false),
           ];
@@ -250,7 +251,7 @@ class _HomePageState extends State<HomePage> {
                     borderRadius: BorderRadius.circular(24),
                     boxShadow: [
                       BoxShadow(
-                        color: const Color(0xFF2563EB).withOpacity(0.25),
+                        color: const Color(0xFF2563EB).withValues(alpha: 0.25),
                         blurRadius: 16,
                         offset: const Offset(0, 8),
                       )
@@ -263,7 +264,7 @@ class _HomePageState extends State<HomePage> {
                         padding: const EdgeInsets.symmetric(
                             horizontal: 10, vertical: 4),
                         decoration: BoxDecoration(
-                          color: Colors.white.withOpacity(0.15),
+                          color: Colors.white.withValues(alpha: 0.15),
                           borderRadius: BorderRadius.circular(20),
                         ),
                         child: const Row(
@@ -496,7 +497,8 @@ class _UploadPageState extends State<UploadPage> {
 
       if (kIsWeb) {
         req.files.add(
-          http.MultipartFile.fromBytes('file', _webImage!, filename: _image!.name),
+          http.MultipartFile.fromBytes('file', _webImage!,
+              filename: _image!.name),
         );
       } else {
         req.files.add(await http.MultipartFile.fromPath('file', _image!.path));
@@ -530,7 +532,8 @@ class _UploadPageState extends State<UploadPage> {
     } on TimeoutException {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('เชื่อมต่อเซิร์ฟเวอร์นานเกินไป กรุณาลองใหม่')),
+          const SnackBar(
+              content: Text('เชื่อมต่อเซิร์ฟเวอร์นานเกินไป กรุณาลองใหม่')),
         );
       }
     } catch (e) {
@@ -558,13 +561,15 @@ class _UploadPageState extends State<UploadPage> {
             ),
             const SizedBox(height: 8),
             DropdownButtonFormField<String>(
-              value: _selectedVehicle,
+              initialValue: _selectedVehicle,
               decoration: const InputDecoration(
                 prefixIcon: Icon(Icons.directions_car_rounded),
               ),
               items: const [
-                DropdownMenuItem(value: 'HONDA-CIVIC', child: Text('HONDA-CIVIC')),
-                DropdownMenuItem(value: 'HONDA-CITY', child: Text('HONDA-CITY')),
+                DropdownMenuItem(
+                    value: 'HONDA-CIVIC', child: Text('HONDA-CIVIC')),
+                DropdownMenuItem(
+                    value: 'HONDA-CITY', child: Text('HONDA-CITY')),
               ],
               onChanged: (val) => setState(() => _selectedVehicle = val!),
             ),
@@ -596,7 +601,8 @@ class _UploadPageState extends State<UploadPage> {
                   children: [
                     Expanded(
                       child: DropdownButtonFormField<String>(
-                        value: _selectedLocations[index],
+                        key: ValueKey(_selectedLocations[index]),
+                        initialValue: _selectedLocations[index],
                         decoration: const InputDecoration(
                           prefixIcon: Icon(Icons.build_circle_outlined),
                         ),
@@ -636,7 +642,8 @@ class _UploadPageState extends State<UploadPage> {
                 width: double.infinity,
                 decoration: BoxDecoration(
                   color: const Color(0xFFF8FAFC),
-                  border: Border.all(color: const Color(0xFFCBD5E1), width: 1.5),
+                  border:
+                      Border.all(color: const Color(0xFFCBD5E1), width: 1.5),
                   borderRadius: BorderRadius.circular(18),
                 ),
                 child: ((kIsWeb && _webImage != null) ||
@@ -645,7 +652,8 @@ class _UploadPageState extends State<UploadPage> {
                         borderRadius: BorderRadius.circular(16),
                         child: kIsWeb
                             ? Image.memory(_webImage!, fit: BoxFit.contain)
-                            : Image.file(File(_image!.path), fit: BoxFit.contain),
+                            : Image.file(File(_image!.path),
+                                fit: BoxFit.contain),
                       )
                     : const Column(
                         mainAxisAlignment: MainAxisAlignment.center,
@@ -732,7 +740,6 @@ class _HistoryPageState extends State<HistoryPage> {
       final prefs = await SharedPreferences.getInstance();
       final userId = prefs.getString('user_id') ?? 'unknown';
 
-      // 🟢 แยก Endpoint ตามสิทธิ์: ช่าง/แอดมิน ดึงจาก review_queue ส่วนผู้ใช้ทั่วไปดึงจาก history ของตัวเอง
       final String url = widget.isTech
           ? '${AppConfig.baseUrl}/api/v1/review_queue?user_id=$userId'
           : '${AppConfig.baseUrl}/api/v1/history/$userId';
@@ -868,7 +875,6 @@ class _HistoryPageState extends State<HistoryPage> {
                             AppRoutes.inspection,
                             arguments: item,
                           );
-                          // รีเฟรชรายการอัตโนมัติเมื่อกลับมาจากหน้ารายละเอียด
                           _fetchHistory(showSpinner: false);
                         },
                       ),

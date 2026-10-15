@@ -92,7 +92,7 @@ class _LoginPageState extends State<LoginPage> {
               constraints: const BoxConstraints(maxWidth: 420),
               padding: const EdgeInsets.all(32),
               decoration: BoxDecoration(
-                color: Colors.white.withOpacity(0.96),
+                color: Colors.white.withValues(alpha: 0.96),
                 borderRadius: BorderRadius.circular(28),
                 boxShadow: const [
                   BoxShadow(
@@ -109,7 +109,7 @@ class _LoginPageState extends State<LoginPage> {
                       borderRadius: BorderRadius.circular(20),
                       boxShadow: [
                         BoxShadow(
-                          color: const Color(0xFF2563EB).withOpacity(0.3),
+                          color: const Color(0xFF2563EB).withValues(alpha: 0.3),
                           blurRadius: 12,
                           offset: const Offset(0, 6),
                         )
@@ -294,8 +294,8 @@ class _RegisterPageState extends State<RegisterPage> {
         }
       } else {
         final data = jsonDecode(response.body);
-        setState(() =>
-            _errorMessage = data['detail'] ?? data['message'] ?? "การลงทะเบียนล้มเหลว");
+        setState(() => _errorMessage =
+            data['detail'] ?? data['message'] ?? "การลงทะเบียนล้มเหลว");
       }
     } catch (e) {
       setState(() => _errorMessage = "เกิดข้อผิดพลาดในการเชื่อมต่อเซิร์ฟเวอร์");
@@ -354,8 +354,8 @@ class _RegisterPageState extends State<RegisterPage> {
                     ),
                     child: Text(
                       _errorMessage,
-                      style:
-                          const TextStyle(color: Color(0xFFBE123C), fontSize: 13),
+                      style: const TextStyle(
+                          color: Color(0xFFBE123C), fontSize: 13),
                     ),
                   ),
                 TextField(

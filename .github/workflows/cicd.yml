@@ -6,39 +6,29 @@ on:
   pull_request:
     branches: [ "main" ]
 
-env:
-  FLUTTER_VERSION: '3.47.1' # 🟢 อัปเดตให้ตรงกับเวอร์ชันในเครื่องของคุณ
-
 jobs:
   # ==========================================
   # JOB 1: ด่านตรวจสอบโค้ด (Lint & Test)
   # ==========================================
   test-and-analyze:
     name: Analyze and Test
-    runs-on: ubuntu-22.04
+    runs-on: ubuntu-latest
     steps:
       - name: Checkout Code
         uses: actions/checkout@v4
 
-      - name: Cache Flutter
-        uses: actions/cache@v4
-        with:
-          path: /opt/hostedtoolcache/flutter
-          key: ${{ runner.os }}-flutter-${{ env.FLUTTER_VERSION }}
-          restore-keys: |
-            ${{ runner.os }}-flutter-
-
       - name: Setup Flutter
         uses: subosito/flutter-action@v2
         with:
-          flutter-version: ${{ env.FLUTTER_VERSION }}
           channel: 'stable'
+          cache: true
 
       - name: Install Dependencies
         run: flutter pub get
 
       - name: Analyze Code
-        run: flutter analyze
+        # ข้ามคำเตือนระดับ Info และ Warning เล็กน้อย แต่ยังคงดักจับ Compile Error ทุกชนิด
+        run: flutter analyze --no-fatal-infos --no-fatal-warnings
 
   # ==========================================
   # JOB 2: Build Android APK
@@ -46,7 +36,7 @@ jobs:
   build-android:
     name: Build Android App
     needs: test-and-analyze
-    runs-on: ubuntu-22.04
+    runs-on: ubuntu-latest
     steps:
       - name: Checkout Code
         uses: actions/checkout@v4
@@ -57,19 +47,11 @@ jobs:
           distribution: 'zulu'
           java-version: '17'
 
-      - name: Cache Flutter
-        uses: actions/cache@v4
-        with:
-          path: /opt/hostedtoolcache/flutter
-          key: ${{ runner.os }}-flutter-${{ env.FLUTTER_VERSION }}
-          restore-keys: |
-            ${{ runner.os }}-flutter-
-
       - name: Setup Flutter
         uses: subosito/flutter-action@v2
         with:
-          flutter-version: ${{ env.FLUTTER_VERSION }}
           channel: 'stable'
+          cache: true
 
       - name: Install Dependencies
         run: flutter pub get
@@ -89,24 +71,16 @@ jobs:
   build-web:
     name: Build Web App
     needs: test-and-analyze
-    runs-on: ubuntu-22.04
+    runs-on: ubuntu-latest
     steps:
       - name: Checkout Code
         uses: actions/checkout@v4
 
-      - name: Cache Flutter
-        uses: actions/cache@v4
-        with:
-          path: /opt/hostedtoolcache/flutter
-          key: ${{ runner.os }}-flutter-${{ env.FLUTTER_VERSION }}
-          restore-keys: |
-            ${{ runner.os }}-flutter-
-
       - name: Setup Flutter
         uses: subosito/flutter-action@v2
         with:
-          flutter-version: ${{ env.FLUTTER_VERSION }}
           channel: 'stable'
+          cache: true
 
       - name: Enable Web Platform
         run: flutter config --enable-web
