@@ -439,7 +439,12 @@ class _UploadPageState extends State<UploadPage> {
   ];
 
   Future<void> _pickImage() async {
-    final picked = await ImagePicker().pickImage(source: ImageSource.gallery);
+    final picked = await ImagePicker().pickImage(
+      source: ImageSource.gallery,
+      maxWidth: 800,
+      maxHeight: 800,
+      imageQuality: 80,
+    );
     if (picked != null) {
       if (kIsWeb) {
         var bytes = await picked.readAsBytes();
@@ -505,7 +510,7 @@ class _UploadPageState extends State<UploadPage> {
       }
 
       var streamedResponse =
-          await req.send().timeout(const Duration(seconds: 30));
+          await req.send().timeout(const Duration(seconds: 120));
       var response = await http.Response.fromStream(streamedResponse);
 
       if (response.statusCode == 200 || response.statusCode == 201) {
