@@ -7,7 +7,7 @@ on:
     branches: [ "main" ]
 
 env:
-  FLUTTER_VERSION: '3.19.0'
+  FLUTTER_VERSION: '3.47.1' # 🟢 อัปเดตให้ตรงกับเวอร์ชันในเครื่องของคุณ
 
 jobs:
   # ==========================================
@@ -40,16 +40,12 @@ jobs:
       - name: Analyze Code
         run: flutter analyze
 
-      # หากมีการเขียน Unit/Widget Test ให้ลบเครื่องหมาย # ออก
-      # - name: Run Tests
-      #   run: flutter test
-
   # ==========================================
   # JOB 2: Build Android APK
   # ==========================================
   build-android:
     name: Build Android App
-    needs: test-and-analyze # บังคับให้ Job นี้ทำงานก็ต่อเมื่อ test-and-analyze ผ่าน
+    needs: test-and-analyze
     runs-on: ubuntu-22.04
     steps:
       - name: Checkout Code
@@ -92,7 +88,7 @@ jobs:
   # ==========================================
   build-web:
     name: Build Web App
-    needs: test-and-analyze # บังคับให้ Job นี้ทำงานก็ต่อเมื่อ test-and-analyze ผ่าน
+    needs: test-and-analyze
     runs-on: ubuntu-22.04
     steps:
       - name: Checkout Code

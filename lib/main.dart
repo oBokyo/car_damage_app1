@@ -11,16 +11,14 @@ void main() async {
 
   final String? userEmail = prefs.getString('user_email');
   final String? userId = prefs.getString('user_id');
-  final String role = prefs.getString('user_role') ?? 'user'; 
   final bool isLoggedIn = (userEmail != null || userId != null);
 
-  runApp(CarDamageApp(isLoggedIn: isLoggedIn, role: role));
+  runApp(CarDamageApp(isLoggedIn: isLoggedIn));
 }
 
 class CarDamageApp extends StatelessWidget {
   final bool isLoggedIn;
-  final String role;
-  const CarDamageApp({super.key, required this.isLoggedIn, required this.role});
+  const CarDamageApp({super.key, required this.isLoggedIn});
 
   @override
   Widget build(BuildContext context) {
@@ -59,12 +57,13 @@ class CarDamageApp extends StatelessWidget {
             borderSide: const BorderSide(color: Color(0xFF2563EB), width: 2),
           ),
         ),
+        
       ),
       initialRoute: isLoggedIn ? AppRoutes.home : AppRoutes.login,
       routes: {
         AppRoutes.login: (context) => const LoginPage(),
         AppRoutes.register: (context) => const RegisterPage(),
-        AppRoutes.home: (context) => MainNavigator(role: role),
+        AppRoutes.home: (context) => const MainNavigator(),
         AppRoutes.result: (context) => const ResultPage(),
         AppRoutes.inspection: (context) => const InspectionPage(),
         AppRoutes.settings: (context) => const SettingsPage(),
