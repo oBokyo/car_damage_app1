@@ -2,6 +2,14 @@
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
 <dict>
+	<key>NSCameraUsageDescription</key>
+	<string>แอปต้องใช้กล้องเพื่อถ่ายภาพความเสียหายของรถยนต์</string>
+	<key>NSPhotoLibraryUsageDescription</key>
+	<string>แอปต้องเข้าถึงคลังรูปภาพเพื่อเลือกรูปความเสียหายของรถยนต์</string>
+	<key>LSApplicationQueriesSchemes</key>
+	<array>
+		<string>tel</string>
+	</array>
 	<key>CADisableMinimumFrameDurationOnPhone</key>
 	<true/>
 	<key>CFBundleDevelopmentRegion</key>

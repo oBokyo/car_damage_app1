@@ -3,6 +3,7 @@ import 'package:flutter/foundation.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:http/http.dart' as http;
+import 'package:url_launcher/url_launcher.dart';
 import 'dart:convert';
 import 'dart:io';
 import 'dart:async';
@@ -204,14 +205,24 @@ class _HomePageState extends State<HomePage> {
     );
   }
 
-  void _callEmergency(String number) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text('กำลังโทรสายด่วน: $number ...'),
-        backgroundColor: const Color(0xFFE11D48),
-        duration: const Duration(seconds: 2),
-      ),
-    );
+  // เปิดหน้าโทรศัพท์ (Dialer) พร้อมใส่เบอร์ไว้ให้ ผู้ใช้กดโทรเอง
+  Future<void> _callEmergency(String number) async {
+    final uri = Uri(scheme: 'tel', path: number);
+    bool opened = false;
+    try {
+      opened = await launchUrl(uri, mode: LaunchMode.externalApplication);
+    } catch (_) {
+      opened = false;
+    }
+    if (!opened && mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('ไม่สามารถเปิดหน้าโทรศัพท์ได้ กรุณาโทร $number ด้วยตนเอง'),
+          backgroundColor: const Color(0xFFE11D48),
+          duration: const Duration(seconds: 3),
+        ),
+      );
+    }
   }
 
   @override
@@ -438,13 +449,67 @@ class _UploadPageState extends State<UploadPage> {
     {'value': 'windshield_glass', 'label': 'กระจก (Windshield Glass)'},
   ];
 
-  Future<void> _pickImage() async {
-    final picked = await ImagePicker().pickImage(
-      source: ImageSource.gallery,
-      maxWidth: 800,
-      maxHeight: 800,
-      imageQuality: 80,
+  // แสดงตัวเลือก: เลือกรูปจากแกลเลอรี หรือ ถ่ายภาพด้วยกล้อง
+  Future<void> _showImageSourcePicker() async {
+    final source = await showModalBottomSheet<ImageSource>(
+      context: context,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (ctx) => SafeArea(
+        child: Padding(
+          padding: const EdgeInsets.symmetric(vertical: 12),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const Padding(
+                padding: EdgeInsets.only(bottom: 8),
+                child: Text(
+                  'เลือกรูปภาพความเสียหาย',
+                  style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
+                ),
+              ),
+              ListTile(
+                leading: const Icon(Icons.photo_library_rounded,
+                    color: Color(0xFF2563EB)),
+                title: const Text('เลือกรูปจากแกลเลอรี'),
+                onTap: () => Navigator.pop(ctx, ImageSource.gallery),
+              ),
+              ListTile(
+                leading: const Icon(Icons.photo_camera_rounded,
+                    color: Color(0xFF16A34A)),
+                title: const Text('ถ่ายภาพ'),
+                onTap: () => Navigator.pop(ctx, ImageSource.camera),
+              ),
+            ],
+          ),
+        ),
+      ),
     );
+    if (source != null) await _pickImage(source);
+  }
+
+  Future<void> _pickImage(ImageSource source) async {
+    XFile? picked;
+    try {
+      picked = await ImagePicker().pickImage(
+        source: source,
+        maxWidth: 800,
+        maxHeight: 800,
+        imageQuality: 80,
+      );
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(source == ImageSource.camera
+                ? 'ไม่สามารถเปิดกล้องได้ กรุณาตรวจสอบสิทธิ์การใช้กล้อง'
+                : 'ไม่สามารถเปิดแกลเลอรีได้'),
+          ),
+        );
+      }
+      return;
+    }
     if (picked != null) {
       if (kIsWeb) {
         var bytes = await picked.readAsBytes();
@@ -641,7 +706,7 @@ class _UploadPageState extends State<UploadPage> {
             ),
             const SizedBox(height: 8),
             GestureDetector(
-              onTap: _pickImage,
+              onTap: _showImageSourcePicker,
               child: Container(
                 height: 400,
                 width: double.infinity,
@@ -667,7 +732,7 @@ class _UploadPageState extends State<UploadPage> {
                               size: 54, color: Color(0xFF2563EB)),
                           SizedBox(height: 12),
                           Text(
-                            'คลิกเพื่ออัปโหลดรูปภาพ',
+                            'แตะเพื่อเลือกรูป หรือ ถ่ายภาพ',
                             style: TextStyle(
                               fontWeight: FontWeight.bold,
                               fontSize: 16,
