@@ -2,8 +2,7 @@ import 'package:flutter/foundation.dart';
 
 class AppConfig {
   // 🟢 เมื่อได้ลิงก์จาก Render หรือ Cloudflare Tunnel แล้ว ให้นำมาวางในเครื่องหมายคำพูดด้านล่างนี้
-  // ตัวอย่าง: 'https://car-damage-api.onrender.com' (ห้ามมีเครื่องหมาย / ปิดท้าย)
-  static const String productionUrl = '';
+  static const String productionUrl = 'https://car-damage-ai-api.onrender.com';
 
   static String get baseUrl {
     if (productionUrl.isNotEmpty) {
